@@ -1,0 +1,15 @@
+/* Jason Project */
+
+MAS zeuthenStrategy {
+
+    infrastructure: Centralised
+
+    environment: streets_of_Zeuthen
+
+    agents:
+        z_one;
+
+        z_two;
+
+}
+
