@@ -78,7 +78,7 @@ validDistribution(OneSide,OtherSide) :-
 	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]).  //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
 	//uniqueSets(OneSide,OtherSide, []).
 
-
+utility(Task, Deal, Task-Deal).
 
 checkTotalTask(Task1, Task2, TotalTask) :-
 	union(Task1,Task2, X) &
