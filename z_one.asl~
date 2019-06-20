@@ -53,7 +53,7 @@ cost([d,f],27).
 cost([e,f],17).
 cost([b,c,d],21).
 cost([b,c,e],17).
-cost([b,c,f],17).
+cost([b,c,f],15).
 cost([b,d,e],26).
 cost([b,d,f],27).
 cost([b,e,f],17).
@@ -69,27 +69,52 @@ cost([c,d,e,f],27).
 cost([b,c,d,e,f],27).
 
 //I remember my task set. During experiments, make sure to adjust the task.
-originalTask([d,e]).
+originalTask([b,c,f]).
 
 //Checking if two task sets are indeed valid re-distribution. This code requires
 // having the total task set (b,c,d,e,f for example). You will need a way for totalTask
 //to get the total task set when agents need to calculate the total task set by themselves.
 validDistribution(OneSide,OtherSide) :-
-	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]) & //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
-	uniqueSets(OneSide,OtherSide).
+	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]).  //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
+	//uniqueSets(OneSide,OtherSide, []).
 
-//Checking if the two task sets are indeed the total task. 
-checkTotalTask(...)//enter your code here.
+checkTotalTask(Task1, Task2, TotalTask) :-
+	union(Task1,Task2, X) &
+	.sort(X,SortedX) &
+	SortedX = TotalTask.
 
+union([], L, L).
+union([Head|L1tail], L2, L3) :-
+        member(Head, L2) &
+        union(L1tail, L2, L3).
+union([Head|L1tail], L2, [Head|L3tail]) :-
+        union(L1tail, L2, L3tail).
 
 //Checking if two sets are unique. 
-uniqueSets(...)//enter your code here.
+uniqueSets([],_,[]).
+uniqueSets(_,[],[]).
+uniqueSets([Head1|OneSide], Otherside, [Head1|Result]):-
+	member(Head1,Otherside) &
+	uniqueSets(OneSide,Otherside, Result).
+uniqueSets([_|OneSide], Otherside, Result) :-
+	uniqueSets(OneSide, OtherSide, Result).
+
+utility(Deal, Task, Util) :-
+	cost(Task, CT) &
+	cost(Deal, CD) &
+	Util = (CT-CD).	
 	
 //I know when a task is individual rational.
-indiRatio(...) //enter your code here.
+indiRatio(Side, SOT) :-//enter your code here.
+	utility(Side, SOT, Util) &
+	Util >= 0.
+
+dominates(Side, SOT) :-
+	utility(Side, SOT, Util) &
+	Util > 0.
 	
 //I know when a deal is pareto optimal:
-paretoOptimal(...) //Enter your code here. Consider adding more functions to
+//paretoOptimal(...) //Enter your code here. Consider adding more functions to
 //solve this problem. For example, given a task, which addresses will the other agent have to do?
 //Hint: .findall function might be useful here. (See below for details)
 
@@ -146,7 +171,7 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 
 /* Initial goals */
 //I hate the deal I have been given. I want a better one! Perhaps I can ask z_two...
-!getBetterDeal.
+!testDistribution.
 
 
 
@@ -165,6 +190,19 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 //It is recommended to first finish negotiations when you get to this point. After,
 //you will need to come back to this function to create a way to reason what the total
 //task set is given originalTask and theirOriginalTask, as well converse about the costs and remember these.
++!testDistribution
+	: not theirOrigialTask(Task)
+	<-
+	if (indiRatio([b,d,f], [b,d,e])){
+		.print("individually rational")
+	} else {
+		.print("rip")
+	}.
+	
+	
+
+
+
 +!getBetterDeal
 	: not theirOriginalTask(Task)
 	<-
@@ -172,6 +210,9 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 	//Note that here, we only want the Answer, whereas this function would normally return 'originalTask(Answer)[source: z_two]
 	//By specifying originalTask in the return, we can seperate Answer from the rest and make a new belief with it.
 	+theirOriginalTask(Answer);
+	if(validDistribution([b,c],[d,e,f]))
+		{.print("yeeeeeeeeeeeeeeeeeet")};
+	
 	.print("Agent 2 told Agent 1 their task was ", Answer);
 	?setOfDeals(Deals); //Finding all good deals, but they are unsorted.
 	?sortedSet(Deals,SortedSet); //All good deals are now sorted.

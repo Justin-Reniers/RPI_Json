@@ -53,7 +53,7 @@ cost([d,f],27).
 cost([e,f],17).
 cost([b,c,d],21).
 cost([b,c,e],17).
-cost([b,c,f],17).
+cost([b,c,f],15).
 cost([b,d,e],26).
 cost([b,d,f],27).
 cost([b,e,f],17).
@@ -78,8 +78,6 @@ validDistribution(OneSide,OtherSide) :-
 	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]).  //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
 	//uniqueSets(OneSide,OtherSide, []).
 
-utility(Task, Deal, Task-Deal).
-
 checkTotalTask(Task1, Task2, TotalTask) :-
 	union(Task1,Task2, X) &
 	.sort(X,SortedX) &
@@ -101,13 +99,53 @@ uniqueSets([Head1|OneSide], Otherside, [Head1|Result]):-
 uniqueSets([_|OneSide], Otherside, Result) :-
 	uniqueSets(OneSide, OtherSide, Result).
 
+utility(Deal, Task, Util) :-
+	cost(Task, CT) &
+	cost(Deal, CD) &
+	Util = (CT-CD).	
+	
 //I know when a task is individual rational.
-//indiRatio(...) //enter your code here.
+indiRatio(Side, SOT) :-//enter your code here.
+	utility(Side, SOT, Util) &
+	Util >= 0.
 	
 //I know when a deal is pareto optimal:
-//paretoOptimal(...) //Enter your code here. Consider adding more functions to
+paretoOptimal(MyTask, TheirTask) :-
+	.findall(Task, cost(T, _), AllTasks) &
+	.delete(MyTask, AllTasks, RestTasks) &
+	lookAllTasks(MyTask, TheirTask, RestTasks).
+//Enter your code here. Consider adding more functions to
 //solve this problem. For example, given a task, which addresses will the other agent have to do?
 //Hint: .findall function might be useful here. (See below for details)
+
+//Checks if our a task is not dominated by any other task that is a viable other 
+//task according to two conditions:
+//1) The Task in RestTasks is at least as good as Task for every agent.
+//2) The Task in RestTasks is strictly better for at least one agent.
+lookAllTasks(_, _, []).
+lookAllTasks(MyTask, TheirTask, [DealTask|Tail]) :-
+	originalTask(OT) &
+	theirOriginalTask(TOT) &
+	utility(MyTask, OT, OTUtil) &
+	utility(TheirTask, TOT, TOTUtil) &
+	not checkBetterUtility(OTUtil, TOTUtil, DealTask) &
+	checkOptimality(MyTask, TheirTask, Tail).
+
+checkBetterUtility(OOTUtil, OTOTUtil, DealTask) :-
+	originalTask(OT) &
+	theirOriginalTask(TOT) &
+	findTheirDeal(DealTask, TheirDealTask) &
+	utility(DealTask, OT, OTUtil) &
+	utility(DealTask, TOT, TOTUtil) &
+	OTUtil >= OOTUtil &
+	TOTUtil >= OTOTUtil &
+	(OTUtil > OOTUtil | TOTUtil > OTOTUtil).
+	
+//Calculates what Task the other agent gets if we have this DealTask.	
+findTheirDeal(DealTask, TheirDealTask) :-
+	.difference(DealTask, [b,c,d,e,f], TheirDealTask).
+	
+	
 
 //I know what a deal I can offer up for negotiations, is like.
 //If you want to check if you did a part correct, for example, validDistribution,
@@ -184,11 +222,17 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 +!testDistribution
 	: not theirOrigialTask(Task)
 	<-
-	if (validDistribution([b,e],[c,d,f])){
-		.print("correct")
+	+findTheirDeal([b,c], TheirDealTask);
+	+.difference([b,c],[b,c,d,e,f], Y);
+	for(.member(X, Y)) {
+		.print(X);
+	}
+	if (validDistribution([b,c], TheirDealTask)) {
+		.print("yes");
 	} else {
-		.print("rip")
+		.print("rip");
 	}.
+	
 	
 	
 
