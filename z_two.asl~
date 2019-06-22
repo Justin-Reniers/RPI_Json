@@ -75,23 +75,75 @@ originalTask([d,e]).
 // having the total task set (b,c,d,e,f for example). You will need a way for totalTask
 //to get the total task set when agents need to calculate the total task set by themselves.
 validDistribution(OneSide,OtherSide) :-
-	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]) & //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
-	uniqueSets(OneSide,OtherSide).
+	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]).  //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
+	//uniqueSets(OneSide,OtherSide, []).
 
-//Checking if the two task sets are indeed the total task. 
-//checkTotalTask(...)//enter your code here.
+checkTotalTask(Task1, Task2, TotalTask) :-
+	union(Task1,Task2, X) &
+	.sort(X,SortedX) &
+	SortedX = TotalTask.
 
+union([], L, L).
+union([Head|L1tail], L2, L3) :-
+        member(Head, L2) &
+        union(L1tail, L2, L3).
+union([Head|L1tail], L2, [Head|L3tail]) :-
+        union(L1tail, L2, L3tail).
 
 //Checking if two sets are unique. 
-//uniqueSets(...)//enter your code here.
+uniqueSets([],_,[]).
+uniqueSets(_,[],[]).
+uniqueSets([Head1|OneSide], Otherside, [Head1|Result]):-
+	member(Head1,Otherside) &
+	uniqueSets(OneSide,Otherside, Result).
+uniqueSets([_|OneSide], Otherside, Result) :-
+	uniqueSets(OneSide, OtherSide, Result).
+
+utility(Deal, Task, Util) :-
+	cost(Task, CT) &
+	cost(Deal, CD) &
+	Util = (CT-CD).	
 	
 //I know when a task is individual rational.
-//indiRatio(...) //enter your code here.
+indiRatio(Side, SOT) :-//enter your code here.
+	utility(Side, SOT, Util) &
+	Util >= 0.
 	
 //I know when a deal is pareto optimal:
-//paretoOptimal(...) //Enter your code here. Consider adding more functions to
+paretoOptimal(MyTask, TheirTask) :-
+	.findall(Task, cost(T, _), AllTasks) &
+	.delete(MyTask, AllTasks, RestTasks) &
+	lookAllTasks(MyTask, TheirTask, RestTasks).
+//Enter your code here. Consider adding more functions to
 //solve this problem. For example, given a task, which addresses will the other agent have to do?
 //Hint: .findall function might be useful here. (See below for details)
+
+//Checks if our a task is not dominated by any other task that is a viable other 
+//task according to two conditions:
+//1) The Task in RestTasks is at least as good as Task for every agent.
+//2) The Task in RestTasks is strictly better for at least one agent.
+lookAllTasks(_, _, []).
+lookAllTasks(MyTask, TheirTask, [DealTask|Tail]) :-
+	originalTask(OT) &
+	theirOriginalTask(TOT) &
+	utility(MyTask, OT, OTUtil) &
+	utility(TheirTask, TOT, TOTUtil) &
+	not checkBetterUtility(OTUtil, TOTUtil, DealTask) &
+	checkOptimality(MyTask, TheirTask, Tail).
+
+checkBetterUtility(OOTUtil, OTOTUtil, DealTask) :-
+	originalTask(OT) &
+	theirOriginalTask(TOT) &
+	findTheirDeal(DealTask, TheirDealTask) &
+	utility(DealTask, OT, OTUtil) &
+	utility(TheirDealTask, TOT, TOTUtil) &
+	OTUtil >= OOTUtil &
+	TOTUtil >= OTOTUtil &
+	(OTUtil > OOTUtil | TOTUtil > OTOTUtil).
+	
+//Calculates what Task the other agent gets if we have this DealTask.	
+findTheirDeal(DealTask, TheirDealTask) :-
+	.difference([b,c,d,e,f], DealTask, TheirDealTask).
 
 
 //I know what conditions deal I can offer up for negotiations needs to fulfill.
@@ -143,6 +195,14 @@ sortSet([[TheirSide,MySide]|OtherDeals],ToBeSorted,[CurTheirHigh,CurMyHigh],SetO
 //No new deal with a lower cost, so our current assumed best remains the best for now.
 sortSet([[TheirSide,MySide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals) :-
 	sortSet(OtherDeals,ToBeSorted,CurBestDeal,SetOfSortedDeals).
+	
+//Returns the head of a list.
+head([H|_], H).	
+
+//Returns last element of a list.
+last([X], X).
+last([_|Z], Y) :-
+	last(Z, Y).
 
 /* Initial goals */
 //I hate the deal I have been given. I want a better one! Perhaps I can ask z_one...
@@ -179,3 +239,41 @@ sortSet([[TheirSide,MySide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 	+theSetOfNegotiationDeals(SortedSet); //Remember the current negotiation deals.
 	!getBetterDeal.
 
+agentWillingness(OT, OurProposal, TheirProposal, Willingness) :-
+	utility(OurProposal, OT, OurPropUtility) &
+	utility(TheirProposal, OT, TheirPropUtility) &
+	Willingness = ((OurPropUtility - TheirPropUtility) / OurPropUtility).
+	
++!getBetterDeal
+	: theirOriginalTask(TOT) & theSetOfNegotiationDeals([Head|Tail])
+	<-
+	-+ourDealTask(Head);
+	.print("Head: ", Head);
+	.wait(1000);
+	.send(z_one, askOne, ourDealTask(TheirTask), ourDealTask([PropOurDeal|PropTheirDeal]));
+	+theirDealTask([PropOurDeal|PropTheirDeal]);
+	?originalTask(OT);
+	.print("Their deal: ", PropTheirDeal);
+	.print(PropOurDeal);
+	?head(PropTheirDeal, TaskD1);
+	?utility(TaskD1, OT, UtilPropOurDeal);
+	.print("Head: ", Head);
+	?last(Head, TaskD2);
+	.print("OT: ", OT, "\tD1: ", TaskD1, "\tD2: ", TaskD2);
+	?utility(TaskD2, OT, UtilOurProposal);
+	.print("Utility D1: ", UtilPropOurDeal);
+	.print("Utility D2: ", UtilOurProposal);
+	if (UtilPropOurDeal < UtilOurProposal) {
+		?head(Head, X);
+		?agentWillingness(OT, TaskD1, TaskD2, Agent2Willingness);
+		?agentWillingness(TOT, PropOurDeal, X, Agent1Willingness);
+		.print(Agent1Willingness);
+		.print(Agent2Willingness);
+		if (Agent1Willingness < Agent2Willingness) {
+			-+theSetOfNegotiationDeals(Tail);
+			!getBetterDeal
+		} else {
+			.print("YEEEEEEEEEEEEEEEEEEEEEEEET BoyS");
+		}
+	}
+	.

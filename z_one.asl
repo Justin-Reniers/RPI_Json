@@ -71,6 +71,14 @@ cost([b,c,d,e,f],27).
 //I remember my task set. During experiments, make sure to adjust the task.
 originalTask([b,c,f]).
 
+//I remember that I proposed a new deal this round. 1 means I did, 0 means I didn't,
+//2 means we haven't started proposing deals yet.
+iPropose(2).
+
+//I remember that I the other agent proposed a new deal this round. 1 means he did, 0 means he didn't,
+//2 means we haven't started proposing deals yet.
+theyPropose(2).
+
 //Checking if two task sets are indeed valid re-distribution. This code requires
 // having the total task set (b,c,d,e,f for example). You will need a way for totalTask
 //to get the total task set when agents need to calculate the total task set by themselves.
@@ -248,31 +256,75 @@ agentWillingness(OT, OurProposal, TheirProposal, Willingness) :-
 	utility(OurProposal, OT, OurPropUtility) &
 	utility(TheirProposal, OT, TheirPropUtility) &
 	Willingness = ((OurPropUtility - TheirPropUtility) / OurPropUtility).
+
+updateNegotiationSet(D1, [], TOT, UpdatedNegotiationSet) :-
+	UpdatedNegotiationSet = [[]].
+updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
+	last(D1, D1A2) &
+	last(D2, D2A2) &
+	utility(D1A2, TOT, UD1A2) &
+	utility(D2A2, TOT, UD2A2) &
+	UD2A2 < UD1A2 &
+	updateNegotiationSet(D1, Tail, TOT, UpdatedNegotiationSet).
+updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
+	last(D1, D1A2) &
+	last(D2, D2A2) &
+	utility(D1A2, TOT, UD1A2) &
+	utility(D2A2, TOT, UD2A2) &
+	UD2A2 >= UD1A2 &
+	UpdatedNegotiationSet = [D2|Tail].
+
+compareLists([], [], Condition) :-
+	Condition = true.
+compareLists([], _, Condition) :-
+	Condition = true.
+compareLists([L1Head|L1Tail], List2, Condition) :-
+	member(L1Head, List2) &
+	compareLists(L1Tail, List2).
+
+theirUtility(TOT, D2A2, D1A2) :-
+	cost(TOT, CTOT) &
+	cost(D2A2, CD2A2) &
+	cost(D1A2, CD1A2) &
+	((CTOT-CD1A2) >= (CTOT-CD2A2)).	
+	
+myUtility(OT, D1A1, D2A1) :-
+	cost(OT, COT) &
+	cost(D1A1, CD1A1) &
+	cost(D2A1, CD2A1) &
+	((COT-CD2A1) >= (COT-CD1A1)).
 	
 +!getBetterDeal
-	: theirOriginalTask(TOT) & theSetOfNegotiationDeals([Head|Tail])
+	: theirOriginalTask(TOT) & theSetOfNegotiationDeals([D1|Tail])
 	<-
-	-+ourDealTask(Head);
+	-+ourDealTask(D1);
 	.wait(1000);
-	.send(z_two, askOne, ourDealTask(TheirTask), ourDealTask([PropOurDeal|PropTheirDeal]));
-	+theirDealTask([PropOurDeal|PropTheirDeal]);
+	.send(z_two, askOne, ourDealTask(TheirTask), ourDealTask([D2A1|ListD2A2]));
+	+theirDealTask([D2A1|ListD2A2]);
 	?originalTask(OT);
-	.print(OT);
-	?utility(PropOurDeal, OT, UtilPropOurDeal);
-	?head(Head, X);
-	?utility(X, OT, UtilOurProposal);
-	if (UtilPropOurDeal < UtilOurProposal) {
-		?head(PropTheirDeal, Y);
-		?last(Head, Z);
-		?agentWillingness(OT, X, PropOurDeal, Agent1Willingness);
-		?agentWillingness(TOT, Y, Z, Agent2Willingness);
-		.print(Agent1Willingness);
-		.print(Agent2Willingness);
+	?utility(D2A1, OT, UD2A1);
+	?head(D1, D1A1);
+	?utility(D1A1, OT, UD1A1);
+	?head(ListD2A2, D2A2);
+	?last(D1, D1A2);
+	.send(z_two, askOne, iPropose(TheyProposed), iPropose(TheyProposed));
+	-+theyPropose(TheyProposed);
+	if (theirUtility(TOT, D2A2, D1A2) & TheyProposed == 0) {
+		.print("Deal A1: ", D1A1, D1A2);
+	} if (myUtility(OT, D1A1, D2A1) & TheyProposed == 1) {
+		.print("Deal A2: ", D2A1, D2A2);
+	} else {
+		?agentWillingness(OT, D1A1, D2A1, Agent1Willingness);
+		?agentWillingness(TOT, D2A2, D1A2, Agent2Willingness);
 		if (Agent1Willingness <= Agent2Willingness) {
-			-+theSetOfNegotiationDeals(Tail);
+			?updateNegotiationSet(D1, Tail, TOT, UpdatedNegotiationSet);
+			-theSetOfNegotiationDeals([D1|Tail]);
+			+theSetOfNegotiationDeals(UpdatedNegotiationSet);
+			-+iPropose(1);
 			!getBetterDeal
 		} else {
-			.print("YEEEEEEEEEEEEEEEEEEEEEEEET BoyS");
+			-+iPropose(0);
+			!getBetterDeal
 		}
 	}
 	.
