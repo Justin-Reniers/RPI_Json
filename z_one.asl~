@@ -108,15 +108,44 @@ utility(Deal, Task, Util) :-
 indiRatio(Side, SOT) :-//enter your code here.
 	utility(Side, SOT, Util) &
 	Util >= 0.
-
-dominates(Side, SOT) :-
-	utility(Side, SOT, Util) &
-	Util > 0.
 	
 //I know when a deal is pareto optimal:
-//paretoOptimal(...) //Enter your code here. Consider adding more functions to
+paretoOptimal(MyTask, TheirTask) :-
+	.findall(Task, cost(T, _), AllTasks) &
+	.delete(MyTask, AllTasks, RestTasks) &
+	lookAllTasks(MyTask, TheirTask, RestTasks).
+//Enter your code here. Consider adding more functions to
 //solve this problem. For example, given a task, which addresses will the other agent have to do?
 //Hint: .findall function might be useful here. (See below for details)
+
+//Checks if our a task is not dominated by any other task that is a viable other 
+//task according to two conditions:
+//1) The Task in RestTasks is at least as good as Task for every agent.
+//2) The Task in RestTasks is strictly better for at least one agent.
+lookAllTasks(_, _, []).
+lookAllTasks(MyTask, TheirTask, [DealTask|Tail]) :-
+	originalTask(OT) &
+	theirOriginalTask(TOT) &
+	utility(MyTask, OT, OTUtil) &
+	utility(TheirTask, TOT, TOTUtil) &
+	not checkBetterUtility(OTUtil, TOTUtil, DealTask) &
+	checkOptimality(MyTask, TheirTask, Tail).
+
+checkBetterUtility(OOTUtil, OTOTUtil, DealTask) :-
+	originalTask(OT) &
+	theirOriginalTask(TOT) &
+	findTheirDeal(DealTask, TheirDealTask) &
+	utility(DealTask, OT, OTUtil) &
+	utility(DealTask, TOT, TOTUtil) &
+	OTUtil >= OOTUtil &
+	TOTUtil >= OTOTUtil &
+	(OTUtil > OOTUtil | TOTUtil > OTOTUtil).
+	
+//Calculates what Task the other agent gets if we have this DealTask.	
+findTheirDeal(DealTask, TheirDealTask) :-
+	.difference([b,c,d,e,f], DealTask, TheirDealTask).
+	
+	
 
 //I know what a deal I can offer up for negotiations, is like.
 //If you want to check if you did a part correct, for example, validDistribution,
@@ -191,13 +220,22 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 //you will need to come back to this function to create a way to reason what the total
 //task set is given originalTask and theirOriginalTask, as well converse about the costs and remember these.
 +!testDistribution
-	: not theirOrigialTask(Task)
+	: true
 	<-
-	if (indiRatio([b,d,f], [b,d,e])){
-		.print("individually rational")
+	+findTheirDeal([b,c], TheirDealTask);
+	.print("yo");
+	.difference([b,c,d,e,f], [b,c], Y);
+	.print(TheirDealTask);
+	.print("Hey");
+	for(.member(X, Y)) {
+		.print(X);
+	}
+	if (validDistribution([b,c], TheirDealTask)) {
+		.print("yes");
 	} else {
-		.print("rip")
+		.print("rip");
 	}.
+	
 	
 	
 

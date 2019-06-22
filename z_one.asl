@@ -53,7 +53,7 @@ cost([d,f],27).
 cost([e,f],17).
 cost([b,c,d],21).
 cost([b,c,e],17).
-cost([b,c,f],15).
+cost([b,c,f],17).
 cost([b,d,e],26).
 cost([b,d,f],27).
 cost([b,e,f],17).
@@ -136,14 +136,14 @@ checkBetterUtility(OOTUtil, OTOTUtil, DealTask) :-
 	theirOriginalTask(TOT) &
 	findTheirDeal(DealTask, TheirDealTask) &
 	utility(DealTask, OT, OTUtil) &
-	utility(DealTask, TOT, TOTUtil) &
+	utility(TheirDealTask, TOT, TOTUtil) &
 	OTUtil >= OOTUtil &
 	TOTUtil >= OTOTUtil &
 	(OTUtil > OOTUtil | TOTUtil > OTOTUtil).
 	
 //Calculates what Task the other agent gets if we have this DealTask.	
 findTheirDeal(DealTask, TheirDealTask) :-
-	.difference(DealTask, [b,c,d,e,f], TheirDealTask).
+	.difference([b,c,d,e,f], DealTask, TheirDealTask).
 	
 	
 
@@ -197,10 +197,21 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,[CurMyHigh,CurTheirHigh],SetO
 sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals) :-
 	sortSet(OtherDeals,ToBeSorted,CurBestDeal,SetOfSortedDeals).
 
+//Returns the head of a list.
+head([H|_], H).	
+
+//Returns last element of a list.
+last([X], X).
+last([_|Z], Y) :-
+	last(Z, Y).
+	
+//
+willingnessToRisk(OUtil, TUtil, Willingness) :-
+	Willingness = (OUtil - TUtil)/OUtil.
 
 /* Initial goals */
 //I hate the deal I have been given. I want a better one! Perhaps I can ask z_two...
-!testDistribution.
+!getBetterDeal.
 
 
 
@@ -219,25 +230,6 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 //It is recommended to first finish negotiations when you get to this point. After,
 //you will need to come back to this function to create a way to reason what the total
 //task set is given originalTask and theirOriginalTask, as well converse about the costs and remember these.
-+!testDistribution
-	: not theirOrigialTask(Task)
-	<-
-	+findTheirDeal([b,c], TheirDealTask);
-	+.difference([b,c],[b,c,d,e,f], Y);
-	for(.member(X, Y)) {
-		.print(X);
-	}
-	if (validDistribution([b,c], TheirDealTask)) {
-		.print("yes");
-	} else {
-		.print("rip");
-	}.
-	
-	
-	
-
-
-
 +!getBetterDeal
 	: not theirOriginalTask(Task)
 	<-
@@ -245,12 +237,42 @@ sortSet([[MySide,TheirSide]|OtherDeals],ToBeSorted,CurBestDeal,SetOfSortedDeals)
 	//Note that here, we only want the Answer, whereas this function would normally return 'originalTask(Answer)[source: z_two]
 	//By specifying originalTask in the return, we can seperate Answer from the rest and make a new belief with it.
 	+theirOriginalTask(Answer);
-	if(validDistribution([b,c],[d,e,f]))
-		{.print("yeeeeeeeeeeeeeeeeeet")};
-	
 	.print("Agent 2 told Agent 1 their task was ", Answer);
 	?setOfDeals(Deals); //Finding all good deals, but they are unsorted.
 	?sortedSet(Deals,SortedSet); //All good deals are now sorted.
 	.print("Agent 1 offers following deals ", SortedSet);
 	+theSetOfNegotiationDeals(SortedSet); //Remember the current negotiation deals.
 	!getBetterDeal.
+
+agentWillingness(OT, OurProposal, TheirProposal, Willingness) :-
+	utility(OurProposal, OT, OurPropUtility) &
+	utility(TheirProposal, OT, TheirPropUtility) &
+	Willingness = ((OurPropUtility - TheirPropUtility) / OurPropUtility).
+	
++!getBetterDeal
+	: theirOriginalTask(TOT) & theSetOfNegotiationDeals([Head|Tail])
+	<-
+	-+ourDealTask(Head);
+	.wait(1000);
+	.send(z_two, askOne, ourDealTask(TheirTask), ourDealTask([PropOurDeal|PropTheirDeal]));
+	+theirDealTask([PropOurDeal|PropTheirDeal]);
+	?originalTask(OT);
+	.print(OT);
+	?utility(PropOurDeal, OT, UtilPropOurDeal);
+	?head(Head, X);
+	?utility(X, OT, UtilOurProposal);
+	if (UtilPropOurDeal < UtilOurProposal) {
+		?head(PropTheirDeal, Y);
+		?last(Head, Z);
+		?agentWillingness(OT, X, PropOurDeal, Agent1Willingness);
+		?agentWillingness(TOT, Y, Z, Agent2Willingness);
+		.print(Agent1Willingness);
+		.print(Agent2Willingness);
+		if (Agent1Willingness <= Agent2Willingness) {
+			-+theSetOfNegotiationDeals(Tail);
+			!getBetterDeal
+		} else {
+			.print("YEEEEEEEEEEEEEEEEEEEEEEEET BoyS");
+		}
+	}
+	.
