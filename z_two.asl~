@@ -71,6 +71,14 @@ cost([b,c,d,e,f],27).
 //I remember my task set. During experiments, make sure to adjust the task.
 originalTask([d,e]).
 
+//I remember that I proposed a new deal this round. 1 means I did, 0 means I didn't,
+//2 means we haven't started proposing deals yet.
+iPropose(2).
+
+//I remember that I the other agent proposed a new deal this round. 1 means he did, 0 means he didn't,
+//2 means we haven't started proposing deals yet.
+theyPropose(2).
+
 //Checking if two task sets are indeed valid re-distribution. This code requires
 // having the total task set (b,c,d,e,f for example). You will need a way for totalTask
 //to get the total task set when agents need to calculate the total task set by themselves.
@@ -244,36 +252,74 @@ agentWillingness(OT, OurProposal, TheirProposal, Willingness) :-
 	utility(TheirProposal, OT, TheirPropUtility) &
 	Willingness = ((OurPropUtility - TheirPropUtility) / OurPropUtility).
 	
+updateNegotiationSet(D1, [], TOT, UpdatedNegotiationSet) :-
+	UpdatedNegotiationSet = [[]].
+updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
+	head(D1, D1A1) &
+	head(D2, D2A1) &
+	utility(D1A1, TOT, UD1A1) &
+	utility(D2A1, TOT, UD2A1) &
+	UD2A1 < UD1A1 &
+	updateNegotiationSet(D1, Tail, TOT, UpdatedNegotiationSet).
+updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
+	head(D1, D1A1) &
+	head(D2, D2A1) &
+	utility(D1A1, TOT, UD1A1) &
+	utility(D2A1, TOT, UD2A1) &
+	UD2A1 >= UD1A1 &
+	UpdatedNegotiationSet = [D2|Tail].	
+	
+compareLists([], [], Condition) :-
+	Condition = true.
+compareLists([], _, Condition) :-
+	Condition = true.
+compareLists([L1Head|L1Tail], List2, Condition) :-
+	member(L1Head, List2) &
+	compareLists(L1Tail, List2).
+	
+theirUtility(TOT, D1A1, D2A1) :-
+	cost(TOT, CTOT) &
+	cost(D1A1, CD1A1) &
+	cost(D2A1, CD2A1) &
+	((CTOT-CD2A1) >= (CTOT-CD1A1)).
+	
+myUtility(OT, D2A2, D1A2) :-
+	cost(OT, COT) &
+	cost(D2A2, CD2A2) &
+	cost(D1A2, CD1A2) &
+	((COT-CD1A2) >= (COT-CD2A2)).
+	
 +!getBetterDeal
-	: theirOriginalTask(TOT) & theSetOfNegotiationDeals([Head|Tail])
+	: theirOriginalTask(TOT) & theSetOfNegotiationDeals([D2|Tail])
 	<-
-	-+ourDealTask(Head);
-	.print("Head: ", Head);
+	-+ourDealTask(D2);
 	.wait(1000);
-	.send(z_one, askOne, ourDealTask(TheirTask), ourDealTask([PropOurDeal|PropTheirDeal]));
-	+theirDealTask([PropOurDeal|PropTheirDeal]);
+	.send(z_one, askOne, ourDealTask(TheirTask), ourDealTask([D1A1|ListD1A2]));
+	+theirDealTask([D1A1|ListD1A2]);
 	?originalTask(OT);
-	.print("Their deal: ", PropTheirDeal);
-	.print(PropOurDeal);
-	?head(PropTheirDeal, TaskD1);
-	?utility(TaskD1, OT, UtilPropOurDeal);
-	.print("Head: ", Head);
-	?last(Head, TaskD2);
-	.print("OT: ", OT, "\tD1: ", TaskD1, "\tD2: ", TaskD2);
-	?utility(TaskD2, OT, UtilOurProposal);
-	.print("Utility D1: ", UtilPropOurDeal);
-	.print("Utility D2: ", UtilOurProposal);
-	if (UtilPropOurDeal < UtilOurProposal) {
-		?head(Head, X);
-		?agentWillingness(OT, TaskD1, TaskD2, Agent2Willingness);
-		?agentWillingness(TOT, PropOurDeal, X, Agent1Willingness);
-		.print(Agent1Willingness);
-		.print(Agent2Willingness);
-		if (Agent1Willingness < Agent2Willingness) {
-			-+theSetOfNegotiationDeals(Tail);
+	?head(ListD1A2, D1A2);
+	?utility(D1A2, OT, UD1A2);
+	?last(D2, D2A2);
+	?utility(D2A2, OT, UD2A2);
+	?head(D2, D2A1);
+	.send(z_one, askOne, iPropose(TheyProposed), iPropose(TheyProposed));
+	-+theyPropose(TheyProposed);
+	if (theirUtility(TOT, D1A1, D2A1) & TheyProposed == 1) {
+		.print("Deal A1: ", D1A1, D1A2);
+	} if (myUtility(OT, D2A2, D1A2) & TheyProposed == 0) {     
+		.print("Deal A2: ", D2A1, D2A2);	
+	} else {
+		?agentWillingness(OT, D2A2, D1A2, Agent2Willingness);
+		?agentWillingness(TOT, D1A1, D2A1, Agent1Willingness);
+		if (Agent2Willingness < Agent1Willingness) {
+			?updateNegotiationSet(D2, Tail, TOT, UpdatedNegotiationSet);
+			-theSetOfNegotiationDeals([D2|Tail]);
+			+theSetOfNegotiationDeals(UpdatedNegotiationSet);
+			-+iPropose(1);
 			!getBetterDeal
 		} else {
-			.print("YEEEEEEEEEEEEEEEEEEEEEEEET BoyS");
+			-+iPropose(0);
+			!getBetterDeal
 		}
 	}
 	.

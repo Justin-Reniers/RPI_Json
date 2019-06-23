@@ -83,14 +83,17 @@ theyPropose(2).
 // having the total task set (b,c,d,e,f for example). You will need a way for totalTask
 //to get the total task set when agents need to calculate the total task set by themselves.
 validDistribution(OneSide,OtherSide) :-
-	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]).  //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
-	//uniqueSets(OneSide,OtherSide, []).
+	checkTotalTask(OneSide,OtherSide,[b,c,d,e,f]) &  //Adjust [b,c,d,e,f] with a totalTask belief later on in the assignment.
+	uniqueSets(OneSide,OtherSide, []).
 
+//Returns the sorted union of Task1 and Task2, and is used to check whether Task1 and Task2 together
+//cover all the tasks [b,c,d,e,f] that should be done.
 checkTotalTask(Task1, Task2, TotalTask) :-
 	union(Task1,Task2, X) &
 	.sort(X,SortedX) &
 	SortedX = TotalTask.
 
+//Returns the union between two lists.
 union([], L, L).
 union([Head|L1tail], L2, L3) :-
         member(Head, L2) &
@@ -139,6 +142,7 @@ lookAllTasks(MyTask, TheirTask, [DealTask|Tail]) :-
 	not checkBetterUtility(OTUtil, TOTUtil, DealTask) &
 	checkOptimality(MyTask, TheirTask, Tail).
 
+//Actually checks the conditions from the function above.
 checkBetterUtility(OOTUtil, OTOTUtil, DealTask) :-
 	originalTask(OT) &
 	theirOriginalTask(TOT) &
@@ -212,6 +216,49 @@ last([X], X).
 last([_|Z], Y) :-
 	last(Z, Y).
 
+//Calculates the Wrisk for an agent given that agent their Original Task, their proposal for themselves
+//and then the proposal from the other agent.	
+agentWillingness(OT, OurProposal, TheirProposal, Willingness) :-
+	utility(OurProposal, OT, OurPropUtility) &
+	utility(TheirProposal, OT, TheirPropUtility) &
+	Willingness = ((OurPropUtility - TheirPropUtility) / OurPropUtility).
+
+//Updates the negotiation set by removing any deal that is not as least as good as the last deal for yourself,
+//according to the MCP.
+updateNegotiationSet(D1, [], TOT, UpdatedNegotiationSet) :-
+	UpdatedNegotiationSet = [[]].
+updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
+	head(D1, D1A1) &
+	head(D2, D2A1) &
+	utility(D1A1, TOT, UD1A1) &
+	utility(D2A1, TOT, UD2A1) &
+	UD2A1 < UD1A1 &
+	updateNegotiationSet(D1, Tail, TOT, UpdatedNegotiationSet).
+updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
+	head(D1, D1A1) &
+	head(D2, D2A1) &
+	utility(D1A1, TOT, UD1A1) &
+	utility(D2A1, TOT, UD2A1) &
+	UD2A1 >= UD1A1 &
+	UpdatedNegotiationSet = [D2|Tail].	
+
+//Calculates the utility of the other agent, in this case the utility of agent 1
+//given the deals on the table right now, and returns whether agent 1 would accept
+//the current deal.
+theirUtility(TOT, D1A1, D2A1) :-
+	cost(TOT, CTOT) &
+	cost(D1A1, CD1A1) &
+	cost(D2A1, CD2A1) &
+	((CTOT-CD2A1) >= (CTOT-CD1A1)).
+
+//Calculates the utility for me given the deals on the table right now, and returns
+//whether I would accept the current deal.
+myUtility(OT, D2A2, D1A2) :-
+	cost(OT, COT) &
+	cost(D2A2, CD2A2) &
+	cost(D1A2, CD1A2) &
+	((COT-CD1A2) >= (COT-CD2A2)).
+
 /* Initial goals */
 //I hate the deal I have been given. I want a better one! Perhaps I can ask z_one...
 !getBetterDeal.
@@ -247,54 +294,20 @@ last([_|Z], Y) :-
 	+theSetOfNegotiationDeals(SortedSet); //Remember the current negotiation deals.
 	!getBetterDeal.
 
-agentWillingness(OT, OurProposal, TheirProposal, Willingness) :-
-	utility(OurProposal, OT, OurPropUtility) &
-	utility(TheirProposal, OT, TheirPropUtility) &
-	Willingness = ((OurPropUtility - TheirPropUtility) / OurPropUtility).
-	
-updateNegotiationSet(D1, [], TOT, UpdatedNegotiationSet) :-
-	UpdatedNegotiationSet = [[]].
-updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
-	head(D1, D1A1) &
-	head(D2, D2A1) &
-	utility(D1A1, TOT, UD1A1) &
-	utility(D2A1, TOT, UD2A1) &
-	UD2A1 < UD1A1 &
-	updateNegotiationSet(D1, Tail, TOT, UpdatedNegotiationSet).
-updateNegotiationSet(D1, [D2|Tail], TOT, UpdatedNegotiationSet) :-
-	head(D1, D1A1) &
-	head(D2, D2A1) &
-	utility(D1A1, TOT, UD1A1) &
-	utility(D2A1, TOT, UD2A1) &
-	UD2A1 >= UD1A1 &
-	UpdatedNegotiationSet = [D2|Tail].	
-	
-compareLists([], [], Condition) :-
-	Condition = true.
-compareLists([], _, Condition) :-
-	Condition = true.
-compareLists([L1Head|L1Tail], List2, Condition) :-
-	member(L1Head, List2) &
-	compareLists(L1Tail, List2).
-	
-theirUtility(TOT, D1A1, D2A1) :-
-	cost(TOT, CTOT) &
-	cost(D1A1, CD1A1) &
-	cost(D2A1, CD2A1) &
-	((CTOT-CD2A1) >= (CTOT-CD1A1)).
-	
-myUtility(OT, D2A2, D1A2) :-
-	cost(OT, COT) &
-	cost(D2A2, CD2A2) &
-	cost(D1A2, CD1A2) &
-	((COT-CD1A2) >= (COT-CD2A2)).
-	
+//The agent attempts to get a better deal know that they know the Original Task of the other agent.
+//They start of by asking the other agent for their proposal, splitting that deal apart. They keep
+//track of whether the other agent proposed or not, to find out what the deal was both agents agreed
+//to. If no deal was agreed to, the agent calculates the Wrisk for both agents, and decides who needs
+//to concede. If it's this agent, they update the negotiation set to find a better deal, and propose their
+//newly found deal. They also keep track of the fact that they themselves proposed a deal. If it's the other
+//agent, this agent simply waits for the new proposal.	
 +!getBetterDeal
 	: theirOriginalTask(TOT) & theSetOfNegotiationDeals([D2|Tail])
 	<-
 	-+ourDealTask(D2);
 	.wait(1000);
-	.send(z_one, askOne, ourDealTask(TheirTask), ourDealTask([D1A1|ListD1A2]));
+	.send(z_one, askOne, ourDealTask(TheirTask), ourDealTask([D1A1|ListD1A2])); //Asking the other agent
+	//what the deal is they propose.
 	+theirDealTask([D1A1|ListD1A2]);
 	?originalTask(OT);
 	?head(ListD1A2, D1A2);
